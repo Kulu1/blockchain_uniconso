@@ -1,0 +1,228 @@
+version: "3.8"
+networks:
+  uni-nets:
+    external: true
+
+# Storage outside the containers
+volumes:
+  data-orderer.natuni.edu:
+  data-cit.natuni.edu:
+  data-cst.natuni.edu:
+  data-bus.privateuni.edu:
+  data-arts.interuni.edu:
+
+services:
+  development:
+    hostname: devweb
+    build:
+      context: .
+      dockerfile: Dockerfile.Dev
+    # environment:
+    command: |
+      sleep infinity
+    stop_grace_period: 5s
+    volumes:
+      - ../..:/workspaces:cached
+    # depends_on:
+    networks:
+      - uni-nets
+
+  # couchdb:
+  #   image: couchdb:2.2.0
+  #   container_name: couchdb
+  #   environment:
+  #     - COUCHDB_USER=user
+  #     - COUCHDB_PASSWORD=password
+  #   ports:
+  #     - "5984:5984"
+  #   restart: always
+  #   networks:
+  #     - uni-nets
+
+  # Orderer service
+  orderer.natuni.edu:
+    container_name: orderer.natuni.edu
+    image: hyperledger/fabric-orderer:2.5.4
+    command: orderer
+    # Override environment variables for orderer in this section
+    environment:
+      - FABRIC_CFG_PATH=/var/hyperledger/config
+      - FABRIC_LOGGING_SPEC=ERROR
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+    # Host folder mappings
+    volumes:
+      # Folder with genesis block
+      - ${PWD}/config/orderer:/var/hyperledger/config
+      # Map the folder with MSP for orderer
+      - ${PWD}/config/crypto-config/ordererOrganizations/natuni.edu/orderers/orderer.natuni.edu/msp:/var/hyperledger/msp
+      # Added to support the TLS setup
+      - ${PWD}/config/crypto-config/ordererOrganizations/natuni.edu/orderers/orderer.natuni.edu/tls:/var/hyperledger/tls
+      - data-orderer.natuni.edu:/var/ledger
+    ports:
+      - 7050:7050
+      - 8443:8443
+    networks:
+      - uni-nets
+
+  # cit
+  cit.natuni.edu:
+    container_name: cit.natuni.edu
+    image: hyperledger/fabric-peer:$IMAGE_TAG
+    # Override variables in this section
+    environment:
+      - FABRIC_CFG_PATH=/var/hyperledger/config
+      - FABRIC_LOGGING_SPEC=WARNING
+      - CORE_PEER_LOCALMSPID=NatuniMSP
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=uni-nets
+    # Start the peer node
+    command: peer node start
+    # Host folder mappings
+    volumes:
+      # Folder with channel create tx file
+      - ${PWD}/config/cit:/var/hyperledger/config
+      # Map the folder with MSP for Peer
+      - ${PWD}/config/crypto-config/peerOrganizations/natuni.edu/peers/cit.natuni.edu/msp:/var/hyperledger/msp
+      # Added to support the TLS setup
+      - ${PWD}/config/crypto-config/peerOrganizations/natuni.edu/peers/cit.natuni.edu/tls:/var/hyperledger/tls
+      - /var/run/:/var/run/
+      - data-cit.natuni.edu:/var/hyperledger/production
+    depends_on:
+      - orderer.natuni.edu
+    # Map the ports on Host VM to container ports
+    ports:
+      - 7051:7051
+      - 7052:7052
+    networks:
+      - uni-nets
+
+  #cst
+  cst.natuni.edu:
+    container_name: cst.natuni.edu
+    image: hyperledger/fabric-peer:$IMAGE_TAG
+    # Override variables in this section
+    environment:
+      - FABRIC_CFG_PATH=/var/hyperledger/config
+      - FABRIC_LOGGING_SPEC=WARNING
+      - CORE_PEER_LOCALMSPID=NatuniMSP
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=uni-nets
+    # Start the peer node
+    command: peer node start
+    # Host folder mappings
+    volumes:
+      # Folder with channel create tx file
+      - ${PWD}/config/cst:/var/hyperledger/config
+      # Map the folder with MSP for Peer
+      - ${PWD}/config/crypto-config/peerOrganizations/natuni.edu/peers/cst.natuni.edu/msp:/var/hyperledger/msp
+      # Added to support the TLS setup
+      - ${PWD}/config/crypto-config/peerOrganizations/natuni.edu/peers/cst.natuni.edu/tls:/var/hyperledger/tls
+      - /var/run/:/var/run/
+      - data-cst.natuni.edu:/var/hyperledger/production
+    depends_on:
+      - orderer.natuni.edu
+    # Map the ports on Host VM to container ports
+    ports:
+      - 8051:7051
+      - 8052:7052
+    networks:
+      - uni-nets
+
+  #bus
+  bus.privateuni.edu:
+    container_name: bus.privateuni.edu
+    image: hyperledger/fabric-peer:$IMAGE_TAG
+    # landing directory
+    working_dir: $HOME
+    # command: peer node start --peer-chaincodedev=true
+    command: peer node start
+    # Environment setup for peer
+    environment:
+      - FABRIC_CFG_PATH=/var/hyperledger/config
+      - FABRIC_LOGGING_SPEC=WARNING
+      - CORE_PEER_LOCALMSPID=PrivateuniMSP
+      - GOPATH=/opt/gopath
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=uni-nets
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=bus.privateuni.edu:7051
+    # host file system mappings
+    volumes:
+      # Folder with channel create tx file
+      - ${PWD}/config/bus:/var/hyperledger/config
+      # Map the folder with MSP for Peer
+      - ${PWD}/config/crypto-config/peerOrganizations/privateuni.edu/peers/bus.privateuni.edu/msp:/var/hyperledger/msp
+      # Added to support the TLS setup
+      - ${PWD}/config/crypto-config/peerOrganizations/privateuni.edu/peers/bus.privateuni.edu/tls:/var/hyperledger/tls
+      - /var/run/:/var/run/
+      - data-bus.privateuni.edu:/var/hyperledger/production
+    depends_on:
+      - orderer.natuni.edu
+    # Map the ports on Host VM to container ports
+    ports:
+      - 9051:7051
+      - 9052:7052
+    networks:
+      - uni-nets
+
+  #arts
+  arts.interuni.edu:
+    container_name: arts.interuni.edu
+    image: hyperledger/fabric-peer:$IMAGE_TAG
+    # landing directory
+    working_dir: $HOME
+    # command: peer node start --peer-chaincodedev=true
+    command: peer node start
+    # Environment setup for peer
+    environment:
+      - FABRIC_CFG_PATH=/var/hyperledger/config
+      - FABRIC_LOGGING_SPEC=WARNING
+      - CORE_PEER_LOCALMSPID=InteruniMSP
+      - GOPATH=/opt/gopath
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=uni-nets
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=arts.interuni.edu:7051
+    # host file system mappings
+    volumes:
+      # Folder with channel create tx file
+      - ${PWD}/config/arts:/var/hyperledger/config
+      # Map the folder with MSP for Peer
+      - ${PWD}/config/crypto-config/peerOrganizations/interuni.edu/peers/arts.interuni.edu/msp:/var/hyperledger/msp
+      # Added to support the TLS setup
+      - ${PWD}/config/crypto-config/peerOrganizations/interuni.edu/peers/arts.interuni.edu/tls:/var/hyperledger/tls
+      - /var/run/:/var/run/
+      - data-arts.interuni.edu:/var/hyperledger/production
+    depends_on:
+      - orderer.natuni.edu
+    # Map the ports on Host VM to container ports
+    ports:
+      - 10051:7051
+      - 10052:7052
+    networks:
+      - uni-nets
+
+  # # Tools container used for managing peers
+  # # tools:
+  # #   container_name: hlf_tools
+  # #   command: /bin/bash
+
+  # #   # Tools container image
+  # #   image: hyperledger/fabric-tools:$IMAGE_TAG
+
+  # #   tty: true
+  # #   stdin_open: true
+  # #   environment:
+  # #     - GOPATH=/opt/gopath
+  # #     - FABRIC_CFG_PATH=/var/hyperledger/config
+  # #     - FABRIC_LOGGING_SPEC=WARNING
+  # #   # This is the working directory on login
+  # #   working_dir: /opt/scripts
+  # #   volumes:
+  # #     # Mapping for the sample chaincode folders
+  # #     - ${PWD}/../artefacts/nodechaincode:/opt/nodechaincode
+  # #     - ${PWD}/../gopath:/opt/gopath
+  # #     # Folder with channel create tx file
+  # #     - ${PWD}/config:/var/hyperledger/config
+  # #     # Map the folder to root of all Fabric CA Client crypto
+  # #     - ${PWD}/config/crypto-config/peerOrganizations:/var/hyperledger/crypto
+  # #     # VM docker stream folder mapping
+  # #     - /var/run/:/host/var/run/
+  # #     # Map the bins folder
+  # #     - ${PWD}/tool-bins:/opt/scripts
+  # #   networks:
+  # #     - uni-nets
